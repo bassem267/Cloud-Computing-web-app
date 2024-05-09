@@ -35,6 +35,16 @@ const auth = getAuth(app);
 
 function App() {
   const [file, setFile] = useState(null);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      return setUser(user);
+    });
+
+    // Unsubscribe from the auth state listener when the component unmounts
+    return () => unsubscribe();
+  }, []);
 
   // Function to handle file selection
   const handleFileChange = (e) => {
@@ -59,7 +69,7 @@ function App() {
           // Create a reference to the storage location
           const imageRef = ref(
             storage,
-            `users/${user.uid}/images/${file.name}`
+            `users/${user.displayName}/images/${file.name}`
           );
 
           // Check if the reader result is a string
@@ -96,15 +106,18 @@ function App() {
 
   const fetchImageURLs = async () => {
     try {
-      const imageFolderRef = ref(storage, "images");
-      const imagesList = await listAll(imageFolderRef);
-      const urls = await Promise.all(
-        imagesList.items.map(async (imageRef) => {
-          const downloadURL = await getDownloadURL(imageRef);
-          return { url: downloadURL, name: imageRef.name };
-        })
-      );
-      setImageURLs(urls);
+      const user = auth.currentUser;
+      if (user) {
+        const imageFolderRef = ref(storage, `users/${user.displayName}/images`);
+        const imagesList = await listAll(imageFolderRef);
+        const urls = await Promise.all(
+          imagesList.items.map(async (imageRef) => {
+            const downloadURL = await getDownloadURL(imageRef);
+            return { url: downloadURL, name: imageRef.name };
+          })
+        );
+        setImageURLs(urls);
+      }
     } catch (error) {
       console.error("Error fetching image URLs:", error);
     }
@@ -117,12 +130,15 @@ function App() {
 
   const handleDeleteImage = async (imageName: string) => {
     try {
-      const imageRef = ref(storage, `images/${imageName}`);
-      await deleteObject(imageRef);
-      console.log("Image deleted successfully:", imageName);
+      const user = auth.currentUser;
+      if (user) {
+        const imageRef = ref(storage, `users/${user.displayName}/images/${imageName}`);
+        await deleteObject(imageRef);
+        console.log("Image deleted successfully:", imageName);
 
-      // Fetch updated image URLs after deletion
-      fetchImageURLs();
+        // Fetch updated image URLs after deletion
+        fetchImageURLs();
+      }
     } catch (error) {
       console.error("Error deleting image:", error);
     }
@@ -131,48 +147,50 @@ function App() {
   return (
     <div className="App">
       <section>
-        <div>
-          {/* Render SignIn component */}
-          <SignIn />
-        </div>
-        <div>
-          {/* Render SignOut component */}
-          <SignOut />
-        </div>
-      </section>
+        {user ? (
+          <div>
+            <h1 className="py-5">Welcome, {user?.displayName}</h1>
+            <SignOut />
 
-      <header className="py-10">
-        <h1>Upload Images</h1>
-      </header>
+            <header className="py-10">
+              <h1>Upload Images</h1>
+            </header>
 
-      <section>
-        <div className="flex items-center justify-center py-10">
-          <input type="file" onChange={handleFileChange} />
-          <button onClick={uploadImage} className="text-white">
-            Upload Image
-          </button>
-        </div>
+            <section>
+              <div className="flex items-center justify-center py-10">
+                <input type="file" onChange={handleFileChange} />
+                <button onClick={uploadImage} className="text-white">
+                  Upload Image
+                </button>
+              </div>
 
-        <h1>Gallery</h1>
-        <div className="image-container flex flex-wrap justify-center">
-          
-          {imageURLs.map((image, index) => (
-            <div key={index} className="w-1/4 aspect-square p-5">
-              <img
-                src={image.url}
-                alt={`Image ${index + 1}`}
-                className="w-full aspect-square object-contain"
-              />
-              <p className="text-center mt-2">{image.name}</p>
-              <button
-                className="text-white"
-                onClick={() => handleDeleteImage(image.name)}
-              >
-                Delete
-              </button>
-            </div>
-          ))}
-        </div>
+              <h1>Gallery</h1>
+              <div className="image-container flex flex-wrap justify-center">
+                {imageURLs.map((image, index) => (
+                  <div key={index} className="w-1/4 aspect-square p-5">
+                    <img
+                      src={image.url}
+                      alt={`Image ${index + 1}`}
+                      className="w-full aspect-square object-contain"
+                    />
+                    <p className="text-center mt-2">{image.name}</p>
+                    <button
+                      className="text-white"
+                      onClick={() => handleDeleteImage(image.name)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+        ) : (
+          <div>
+            <h1 className="py-5">Welcome, Guest</h1>
+            <SignIn />
+          </div>
+        )}
       </section>
     </div>
   );
