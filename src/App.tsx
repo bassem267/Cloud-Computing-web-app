@@ -9,9 +9,9 @@ import {
   uploadString,
   deleteObject,
 } from "firebase/storage";
-import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { User, getAuth } from "firebase/auth";
 import { useEffect, useState } from "react";
+import { ChangeEvent } from "react";
 import SignIn from "./assets/components/SingIn";
 import SignOut from "./assets/components/SingOut";
 
@@ -29,13 +29,13 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-const db = getFirestore(app);
 const storage = getStorage();
 const auth = getAuth(app);
 
 function App() {
   const [file, setFile] = useState(null);
-  const [user, setUser] = useState(null);
+
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
@@ -47,12 +47,17 @@ function App() {
   }, []);
 
   // Function to handle file selection
-  const handleFileChange = (e) => {
-    if (e.target.files[0]) {
+  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+      // @ts-expect-error
       setFile(e.target.files[0]);
+    } else {
+      setFile(null); // Set file to null if no file is selected
     }
   };
 
+  // Inside the uploadImage function:
   const uploadImage = async () => {
     try {
       if (!file) {
@@ -69,7 +74,9 @@ function App() {
           // Create a reference to the storage location
           const imageRef = ref(
             storage,
-            `users/${user.displayName}/images/${file.name}`
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-expect-error
+            `users/${user.displayName}/images/${file?.name}`
           );
 
           // Check if the reader result is a string
@@ -132,7 +139,10 @@ function App() {
     try {
       const user = auth.currentUser;
       if (user) {
-        const imageRef = ref(storage, `users/${user.displayName}/images/${imageName}`);
+        const imageRef = ref(
+          storage,
+          `users/${user.displayName}/images/${imageName}`
+        );
         await deleteObject(imageRef);
         console.log("Image deleted successfully:", imageName);
 
